@@ -23,6 +23,15 @@ scan_launchagents() {
   return "$matches"
 }
 
+scan_pgmon_dir() {
+  local path="$HOME/.local/share/pgmon"
+  if [ -e "$path" ]; then
+    add_finding "persistence_artifact" "$path" "" "path exists"
+    return 1
+  fi
+  return 0
+}
+
 scan_launchctl() {
   if ! command -v launchctl >/dev/null 2>&1; then
     return 0
@@ -40,4 +49,5 @@ found=0
 run_common_scans || found=1
 scan_launchagents || found=1
 scan_launchctl || found=1
+scan_pgmon_dir || found=1
 print_results "$found"

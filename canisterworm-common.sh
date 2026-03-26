@@ -54,6 +54,7 @@ scan_history() {
   grep -HniE "$PACKAGE_REGEX" \
     "$HOME/.bash_history" \
     "$HOME/.zsh_history" \
+    "$HOME/.history" \
     "$HOME/.local/share/fish/fish_history" \
     >"$tmp" 2>/dev/null
   if [ -s "$tmp" ]; then
