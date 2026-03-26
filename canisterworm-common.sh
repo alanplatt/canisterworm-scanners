@@ -99,19 +99,65 @@ scan_processes() {
   return 0
 }
 
+C2_DOMAIN='tdtqy-oyaaa-aaaae-af2dq-cai.raw.icp0.io'
+
+scan_network_c2() {
+  local matches=0
+
+  # Check /etc/hosts for the C2 domain.
+  if [ -f /etc/hosts ] && grep -qF "$C2_DOMAIN" /etc/hosts 2>/dev/null; then
+    matches=1
+    add_finding "c2_domain_hosts" "/etc/hosts" "" "$C2_DOMAIN"
+  fi
+
+  # Check active network connections (lsof -i available on macOS and most Linux).
+  if command -v lsof >/dev/null 2>&1; then
+    local output
+    output="$(lsof -i 2>/dev/null | grep -F "$C2_DOMAIN" || true)"
+    if [ -n "$output" ]; then
+      matches=1
+      record_command_output "c2_domain_connection" "lsof -i" "$output"
+    fi
+  fi
+
+  # macOS DNS cache.
+  if command -v dscacheutil >/dev/null 2>&1; then
+    local output
+    output="$(dscacheutil -cachedump -entries Host 2>/dev/null | grep -F "$C2_DOMAIN" || true)"
+    if [ -n "$output" ]; then
+      matches=1
+      record_command_output "c2_domain_dns_cache" "dscacheutil" "$output"
+    fi
+  fi
+
+  return "$matches"
+}
+
+scan_npmrc() {
+  local npmrc="$HOME/.npmrc"
+  if [ -f "$npmrc" ] && grep -qE '_authToken|^_auth' "$npmrc" 2>/dev/null; then
+    add_finding "npmrc_token_present" "$npmrc" "" \
+      "npm auth token found — rotate if this machine may have been compromised"
+    return 1
+  fi
+  return 0
+}
+
 run_common_scans() {
   local found=0
   scan_history || found=1
   scan_npm_logs || found=1
   scan_tmp_files || found=1
   scan_processes || found=1
+  scan_network_c2 || found=1
+  scan_npmrc || found=1
   return "$found"
 }
 
 print_results() {
   local found="$1"
   if [ "$found" -eq 0 ]; then
-    printf 'all good\n'
+    printf 'All good\n'
   else
     printf 'findings:\n'
     cat "$FINDINGS_FILE"
